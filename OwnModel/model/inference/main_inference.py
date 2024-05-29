@@ -1,6 +1,6 @@
 import torch
-from model_inference import load_model, infer
-from preprocess_audio import preprocess_audio
+from model.inference.model_inference import load_model, infer
+from model.inference.preprocess_audio import preprocess_audio
 
 def main(audio_path, model_path):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

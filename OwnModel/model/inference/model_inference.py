@@ -1,6 +1,6 @@
 import torch
 from model import SpeechRecognition
-from text_process import GreedyDecoder
+from model.construction.text_process import GreedyDecoder
 
 def load_model(model_path, device):
     model = SpeechRecognition(hidden_size=1024, num_classes=29, n_feats=81, num_layers=1, dropout=0.1)
