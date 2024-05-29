@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader, Dataset
 from model import SpeechRecognition
 from preprocess import AudioPreprocessor
 from text_process import GreedyDecoder
-from error_metrics import wer, cer, avg_wer
+from error_metrics import wer, cer, avg_wer  # Import avg_wer here
 import os
 
 class AudioDataset(Dataset):
@@ -73,9 +73,13 @@ def main():
     criterion = torch.nn.CTCLoss(blank=28)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    for epoch in range (10):
+    for epoch in range(10):
         loss = train(model, train_loader, criterion, optimizer, device)
         print(f"Epoch {epoch+1}, Loss: {loss:.4f}")
+
+    # Save the trained model
+    torch.save(model.state_dict(), "../model/models/model.pth")
+    print("Model saved as model.pth")
 
 if __name__ == "__main__":
     main()
