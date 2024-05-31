@@ -1,7 +1,6 @@
 # transcribe.py
 import os
 import whisper
-import logging
 from flask import jsonify
 from logger import server_logger
 from model_config import MODEL_NAME
