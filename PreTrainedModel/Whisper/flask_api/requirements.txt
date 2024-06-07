@@ -1,6 +1,0 @@
-flask[async]
-gunicorn
-torch
-openai-whisper
-python-multipart
-pydub
