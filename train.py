@@ -6,10 +6,11 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from model import SpeechRecognition
 from torch.utils.data import DataLoader
+from utils import wer, cer, GreedyDecoder 
 from dataset import Data, collate_fn_padd
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger 
 
 # Hyperparameters
 LEARNING_RATE = 1e-3
@@ -42,10 +43,10 @@ class SpeechModule(LightningModule):
         output, _ = self(spectrograms, (hn, c0))  # Forward pass
         output = nn.functional.log_softmax(output, dim=2)  # Log softmax activation
         loss = self.criterion(output, labels, input_lengths, label_lengths)  # Compute loss
-        return loss
+        return loss, output, labels, label_lengths
 
     def training_step(self, batch, batch_idx):
-        loss = self.step(batch)  # Compute loss for training step
+        loss, _, _, _ = self.step(batch)  # Compute loss for training step
         self.train_losses.append(loss.item())  # Append training loss for plotting
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)  # Log training loss
         return {'loss': loss}
@@ -60,10 +61,10 @@ class SpeechModule(LightningModule):
         )
 
     def validation_step(self, batch, batch_idx):
-        loss = self.step(batch)  # Compute loss for validation step
+        loss, output, labels, label_lengths = self.step(batch)  # Compute loss for validation step
         self.val_losses.append(loss.item())  # Append validation loss for plotting
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)  # Log validation loss
-        return {'val_loss': loss}
+        return {'val_loss': loss, 'output': output, 'labels': labels, 'label_lengths': label_lengths}
 
     def val_dataloader(self):
         d_params = Data.parameters  # Data parameters
@@ -74,14 +75,33 @@ class SpeechModule(LightningModule):
             pin_memory=True
         )
 
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # Compute average validation loss
+        self.scheduler.step(avg_loss)
+        self.log('avg_val_loss', avg_loss)
+
+        # Evaluate WER and CER for a sample
+        sample_output = outputs[0]['output']
+        sample_labels = outputs[0]['labels']
+        sample_label_lengths = outputs[0]['label_lengths']
+
+        decoded_preds, decoded_targets = GreedyDecoder(sample_output, sample_labels, sample_label_lengths)
+        wer_score = wer(decoded_targets[0], decoded_preds[0])
+        cer_score = cer(decoded_targets[0], decoded_preds[0])
+
+        print(f'Validation WER: {wer_score:.4f}, CER: {cer_score:.4f}')
+
+        tensorboard_logs = {'val_loss': avg_loss, 'val_wer': wer_score, 'val_cer': cer_score}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs, 'progress_bar': tensorboard_logs}
+
 def checkpoint_callback():
     return ModelCheckpoint(
-        dirpath='checkpoints',  
-        filename='{epoch:02d}-{val_loss:.2f}',  
-        save_top_k=-1,  
-        verbose=True,  
-        monitor='val_loss',  
-        mode='min'  
+        dirpath='checkpoints',  # Directory to save the checkpoints
+        filename='{epoch:02d}-{val_loss:.2f}',  # Filename format for the checkpoints
+        save_top_k=-1,  # Save all checkpoints
+        verbose=True,  # Verbose output
+        monitor='val_loss',  # Monitor validation loss
+        mode='min'  # Save the model with the minimum validation loss
     )
 
 def save_loss_graph(train_losses, val_losses):
@@ -92,28 +112,28 @@ def save_loss_graph(train_losses, val_losses):
     plt.ylabel('Loss')
     plt.legend()
     plt.title('Training and Validation Loss per Epoch')
-    plt.savefig('loss_graph.png') 
+    plt.savefig('graphs/loss_graph.png')  # Save the graph in the graphs directory
     plt.close()
 
 def main():
-    os.makedirs('graphs', exist_ok=True)  
-    os.makedirs('model', exist_ok=True)  
-    os.makedirs('checkpoints', exist_ok=True) 
-    os.makedirs('logs', exist_ok=True)  
+    os.makedirs('graphs', exist_ok=True)  # Create graphs directory
+    os.makedirs('model', exist_ok=True)  # Create model directory
+    os.makedirs('checkpoints', exist_ok=True)  # Create checkpoints directory
+    os.makedirs('logs', exist_ok=True)  # Create logs directory
 
-    h_params = SpeechRecognition.hyper_parameters  
-    model = SpeechRecognition(**h_params)  
+    h_params = SpeechRecognition.hyper_parameters  # Default hyperparameters
+    model = SpeechRecognition(**h_params)  # Initialize model
 
-    speech_module = SpeechModule(model)  
+    speech_module = SpeechModule(model)  # Initialize new model
 
-    logger = TensorBoardLogger('logs', name='speech_recognition')  
+    logger = TensorBoardLogger('logs', name='speech_recognition')  # TensorBoard logger
     trainer = Trainer(
-        max_epochs=EPOCHS, gpus=1,  
+        max_epochs=EPOCHS, gpus=1,  # Use a single GPU
         logger=logger, gradient_clip_val=1.0,
         val_check_interval=1.0,
         callbacks=[checkpoint_callback()],
     )
-    trainer.fit(speech_module)  
+    trainer.fit(speech_module)  # Train the model
 
     # Save the final model
     torch.save(model.state_dict(), 'model/speech_model.pth')
@@ -122,4 +142,4 @@ def main():
     save_loss_graph(speech_module.train_losses, speech_module.val_losses)
 
 if __name__ == "__main__":
-    main()  
+    main()  # Run the main function
