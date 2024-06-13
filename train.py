@@ -6,11 +6,11 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from model import SpeechRecognition
 from torch.utils.data import DataLoader
-from utils import wer, cer, GreedyDecoder 
+from utils import wer, cer, GreedyDecoder
 from dataset import Data, collate_fn_padd
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger 
+from pytorch_lightning.loggers import TensorBoardLogger
 
 # Hyperparameters
 LEARNING_RATE = 1e-3
@@ -112,34 +112,34 @@ def save_loss_graph(train_losses, val_losses):
     plt.ylabel('Loss')
     plt.legend()
     plt.title('Training and Validation Loss per Epoch')
-    plt.savefig('graphs/loss_graph.png')  # Save the graph in the graphs directory
+    plt.savefig('graphs/loss_graph.png')  
     plt.close()
 
 def main():
-    os.makedirs('graphs', exist_ok=True)  # Create graphs directory
-    os.makedirs('model', exist_ok=True)  # Create model directory
-    os.makedirs('checkpoints', exist_ok=True)  # Create checkpoints directory
-    os.makedirs('logs', exist_ok=True)  # Create logs directory
+    os.makedirs('graphs', exist_ok=True)  
+    os.makedirs('model', exist_ok=True)  
+    os.makedirs('checkpoints', exist_ok=True)  
+    os.makedirs('logs', exist_ok=True)  
 
-    h_params = SpeechRecognition.hyper_parameters  # Default hyperparameters
-    model = SpeechRecognition(**h_params)  # Initialize model
+    h_params = SpeechRecognition.hyper_parameters  
+    model = SpeechRecognition(**h_params)  
 
-    speech_module = SpeechModule(model)  # Initialize new model
+    speech_module = SpeechModule(model)  
 
-    logger = TensorBoardLogger('logs', name='speech_recognition')  # TensorBoard logger
+    logger = TensorBoardLogger('logs', name='speech_recognition')  
     trainer = Trainer(
-        max_epochs=EPOCHS, gpus=1,  # Use a single GPU
+        max_epochs=EPOCHS, gpus=1,  
         logger=logger, gradient_clip_val=1.0,
         val_check_interval=1.0,
         callbacks=[checkpoint_callback()],
     )
-    trainer.fit(speech_module)  # Train the model
+    trainer.fit(speech_module)  
 
     # Save the final model
-    torch.save(model.state_dict(), 'model/speech_model.pth')
+    torch.save(model.state_dict(), 'model/model_mark_1.pth')
 
     # Save the loss graph
     save_loss_graph(speech_module.train_losses, speech_module.val_losses)
 
 if __name__ == "__main__":
-    main()  # Run the main function
+    main()  

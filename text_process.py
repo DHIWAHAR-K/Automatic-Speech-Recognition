@@ -47,28 +47,10 @@ class TextProcess:
         self.index_map[1] = ' '
 
     def text_to_int_sequence(self, text):
-        """
-        Convert text to a sequence of integers using the character map.
-        
-        Args:
-            text (str): Input text.
-            
-        Returns:
-            list: List of integers representing the text.
-        """
         # Convert each character in the text to its corresponding integer index
         return [self.char_map['<SPACE>'] if c == ' ' else self.char_map[c] for c in text]
 
     def int_to_text_sequence(self, labels):
-        """
-        Convert a sequence of integers back to text using the index map.
-        
-        Args:
-            labels (list): List of integers.
-            
-        Returns:
-            str: The resulting text string.
-        """
         # Convert each integer in the list to its corresponding character
         return ''.join([self.index_map[i] for i in labels]).replace('<SPACE>', ' ')
 
@@ -76,19 +58,6 @@ class TextProcess:
 textprocess = TextProcess()
 
 def GreedyDecoder(output, labels, label_lengths, blank_label=28, collapse_repeated=True):
-    """
-    Decodes the output of the model using greedy decoding.
-    
-    Args:
-        output (torch.Tensor): The output tensor from the model.
-        labels (torch.Tensor): The ground truth labels.
-        label_lengths (torch.Tensor): The lengths of the labels.
-        blank_label (int): The index of the blank label.
-        collapse_repeated (bool): Whether to collapse repeated characters.
-        
-    Returns:
-        tuple: Decoded sequences and target sequences.
-    """
     arg_maxes = torch.argmax(output, dim=2)  # Get the index of the max log-probability
     decodes = []
     targets = []
