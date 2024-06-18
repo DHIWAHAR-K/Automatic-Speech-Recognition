@@ -7,53 +7,56 @@ import torch.nn as nn
 from utils import TextProcess
 
 class SpecAugment(nn.Module):
-    def __init__(self, rate, policy=3, freq_mask=15, time_mask=35):
+    def __init__(self, rate, policy=3, freq_mask=15, time_mask=35, stretch_factor=(0.8, 1.25)):
         super(SpecAugment, self).__init__()
-        self.rate = rate  # Rate of augmentation
+        self.rate = rate
+        self.stretch_factor = stretch_factor
         self.specaug = nn.Sequential(
-            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),  # Frequency masking
-            torchaudio.transforms.TimeMasking(time_mask_param=time_mask)  # Time masking
+            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
+            torchaudio.transforms.TimeMasking(time_mask_param=time_mask)
         )
         self.specaug2 = nn.Sequential(
-            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),  # Frequency masking
-            torchaudio.transforms.TimeMasking(time_mask_param=time_mask),  # Time masking
-            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),  # Frequency masking
-            torchaudio.transforms.TimeMasking(time_mask_param=time_mask)  # Time masking
+            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
+            torchaudio.transforms.TimeMasking(time_mask_param=time_mask),
+            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
+            torchaudio.transforms.TimeMasking(time_mask_param=time_mask)
         )
+        self.time_stretch = torchaudio.transforms.TimeStretch()
         policies = {1: self.policy1, 2: self.policy2, 3: self.policy3}
-        self._forward = policies[policy]  # Select augmentation policy
+        self._forward = policies[policy]
 
     def forward(self, x):
-        return self._forward(x)  # Apply selected policy
+        return self._forward(x)
 
     def policy1(self, x):
-        probability = torch.rand(1, 1).item()  # Random probability
+        probability = torch.rand(1, 1).item()
         if self.rate > probability:
-            return self.specaug(x)  # Apply specaug
+            x = self.time_stretch(x, torch.FloatTensor(1).uniform_(*self.stretch_factor))
+            return self.specaug(x)
         return x
 
     def policy2(self, x):
-        probability = torch.rand(1, 1).item()  # Random probability
+        probability = torch.rand(1, 1).item()
         if self.rate > probability:
-            return self.specaug2(x)  # Apply specaug2
+            x = self.time_stretch(x, torch.FloatTensor(1).uniform_(*self.stretch_factor))
+            return self.specaug2(x)
         return x
 
     def policy3(self, x):
-        probability = torch.rand(1, 1).item()  # Random probability
+        probability = torch.rand(1, 1).item()
         if probability > 0.5:
-            return self.policy1(x)  # Apply policy1
-        return self.policy2(x)  # Apply policy2
+            return self.policy1(x)
+        return self.policy2(x)
 
 class LogMelSpec(nn.Module):
     def __init__(self, sample_rate=8000, n_mels=128, win_length=160, hop_length=80):
         super(LogMelSpec, self).__init__()
         self.transform = torchaudio.transforms.MelSpectrogram(
-            sample_rate=sample_rate, n_mels=n_mels, win_length=win_length, hop_length=hop_length
-        )
+            sample_rate=sample_rate, n_mels=n_mels, win_length=win_length, hop_length=hop_length)
 
     def forward(self, x):
-        x = self.transform(x)  # Compute mel spectrogram
-        x = torch.log1p(x)  # Apply logarithmic transformation
+        x = self.transform(x)  # mel spectrogram
+        x = torch.log(x + 1e-14)  # logarithmic, add small value to avoid inf
         return x
 
 def get_featurizer(sample_rate, n_feats=81):
@@ -68,68 +71,75 @@ class Data(torch.utils.data.Dataset):
 
     def __init__(self, json_path, sample_rate, n_feats, specaug_rate, specaug_policy,
                  time_mask, freq_mask, valid=False, shuffle=True, text_to_int=True, log_ex=True):
-        self.log_ex = log_ex  # Log exceptions flag
-        self.text_process = TextProcess()  # Text processing
-        self.data = pd.read_json(json_path, lines=True)  # Load data from JSON file
+        self.log_ex = log_ex
+        self.text_process = TextProcess()
+
+        print("Loading data json file from", json_path)
+        self.data = pd.read_json(json_path, lines=True)
 
         if valid:
-            self.audio_transforms = nn.Sequential(
+            self.audio_transforms = torch.nn.Sequential(
                 LogMelSpec(sample_rate=sample_rate, n_mels=n_feats, win_length=160, hop_length=80)
             )
         else:
-            self.audio_transforms = nn.Sequential(
+            self.audio_transforms = torch.nn.Sequential(
                 LogMelSpec(sample_rate=sample_rate, n_mels=n_feats, win_length=160, hop_length=80),
                 SpecAugment(specaug_rate, specaug_policy, freq_mask, time_mask)
             )
 
     def __len__(self):
-        return len(self.data)  # Return length of dataset
+        return len(self.data)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
-            idx = idx.item()  # Convert tensor to int
+            idx = idx.item()
 
-        while True:
-            try:
-                file_path = self.data.key.iloc[idx]  # Get file path
-                waveform, _ = torchaudio.load(file_path)  # Load audio file
-                label = self.text_process.text_to_int_sequence(self.data['text'].iloc[idx])  # Convert text to integer sequence
-                spectrogram = self.audio_transforms(waveform)  # Apply audio transformations
-                spec_len = spectrogram.shape[-1] // 2  # Spectrogram length
-                label_len = len(label)  # Label length
-                if spec_len < label_len:
-                    raise ValueError('Spectrogram length is smaller than label length')
-                if spectrogram.shape[0] > 1:
-                    raise ValueError('Dual channel, skipping audio file %s' % file_path)
-                if spectrogram.shape[2] > 1650:
-                    raise ValueError('Spectrogram too big, size %s' % spectrogram.shape[2])
-                if label_len == 0:
-                    raise ValueError('Label length is zero, skipping %s' % file_path)
-                break
-            except Exception as e:
-                if self.log_ex:
-                    print(str(e), file_path)
-                idx = (idx - 1) if idx != 0 else (idx + 1)
-
-        return spectrogram, label, spec_len, label_len  # Return processed data
+        try:
+            file_path = self.data.key.iloc[idx]
+            waveform, _ = torchaudio.load(file_path)
+            label = self.text_process.text_to_int_sequence(self.data['text'].iloc[idx])
+            spectrogram = self.audio_transforms(waveform)  # (channel, feature, time)
+            spec_len = spectrogram.shape[-1] // 2
+            label_len = len(label)
+            if spec_len < label_len:
+                raise Exception('spectrogram len is bigger than label len')
+            if spectrogram.shape[0] > 1:
+                raise Exception('dual channel, skipping audio file %s' % file_path)
+            if spectrogram.shape[2] > 1650:
+                raise Exception('spectrogram too big. size %s' % spectrogram.shape[2])
+            if label_len == 0:
+                raise Exception('label len is zero... skipping %s' % file_path)
+        except Exception as e:
+            if self.log_ex:
+                print(str(e), file_path)
+            return self.__getitem__(idx - 1 if idx != 0 else idx + 1)
+        return spectrogram, label, spec_len, label_len
 
     def describe(self):
-        return self.data.describe()  # Describe dataset statistics
+        return self.data.describe()
 
 def collate_fn_padd(data):
+    '''
+    Pads batch of variable length
+
+    note: it converts things ToTensor manually here since the ToTensor transform
+    assumes it takes in images rather than arbitrary tensors.
+    '''
     spectrograms = []
     labels = []
     input_lengths = []
     label_lengths = []
-
     for (spectrogram, label, input_length, label_length) in data:
         if spectrogram is None:
             continue
-        spectrograms.append(spectrogram.squeeze(0).transpose(0, 1))  # Transpose spectrogram
-        labels.append(torch.Tensor(label))  # Convert label to tensor
-        input_lengths.append(input_length)  # Append input length
-        label_lengths.append(label_length)  # Append label length
+        spectrograms.append(spectrogram.squeeze(0).transpose(0, 1))
+        labels.append(torch.Tensor(label))
+        input_lengths.append(input_length)
+        label_lengths.append(label_length)
 
     spectrograms = nn.utils.rnn.pad_sequence(spectrograms, batch_first=True).unsqueeze(1).transpose(2, 3)
     labels = nn.utils.rnn.pad_sequence(labels, batch_first=True)
-    return spectrograms, labels, input_lengths, label_lengths  # Return padded sequences
+    input_lengths = input_lengths
+    label_lengths = label_lengths
+
+    return spectrograms, labels, input_lengths, label_lengths

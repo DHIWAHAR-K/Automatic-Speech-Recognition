@@ -1,90 +1,79 @@
 #utils.py
-import numpy as np
+import torch
 
-def avg_wer(wer_scores, combined_ref_len):
-    
-    return float(sum(wer_scores)) / float(combined_ref_len)
+class TextProcess:
+    def __init__(self):
+        char_map_str = """
+        ' 0
+        <SPACE> 1
+        a 2
+        b 3
+        c 4
+        d 5
+        e 6
+        f 7
+        g 8
+        h 9
+        i 10
+        j 11
+        k 12
+        l 13
+        m 14
+        n 15
+        o 16
+        p 17
+        q 18
+        r 19
+        s 20
+        t 21
+        u 22
+        v 23
+        w 24
+        x 25
+        y 26
+        z 27
+        """
+        self.char_map = {}
+        self.index_map = {}
+        for line in char_map_str.strip().split('\n'):
+            ch, index = line.split()
+            self.char_map[ch] = int(index)
+            self.index_map[int(index)] = ch
+        self.index_map[1] = ' '  # replace <SPACE> with actual space
 
-def _levenshtein_distance(ref, hyp):
-    
-    m = len(ref)
-    n = len(hyp)
-
-    if ref == hyp:
-        return 0
-    if m == 0:
-        return n
-    if n == 0:
-        return m
-
-    if m < n:
-        ref, hyp = hyp, ref
-        m, n = n, m
-
-    distance = np.zeros((2, n + 1), dtype=np.int32)
-
-    for j in range(0, n + 1):
-        distance[0][j] = j
-
-    for i in range(1, m + 1):
-        prev_row_idx = (i - 1) % 2
-        cur_row_idx = i % 2
-        distance[cur_row_idx][0] = i
-        for j in range(1, n + 1):
-            if ref[i - 1] == hyp[j - 1]:
-                distance[cur_row_idx][j] = distance[prev_row_idx][j - 1]
+    def text_to_int_sequence(self, text):
+        """Convert text to an integer sequence using the character map."""
+        int_sequence = []
+        for c in text:
+            if c == ' ':
+                ch = self.char_map['<SPACE>']
             else:
-                s_num = distance[prev_row_idx][j - 1] + 1
-                i_num = distance[cur_row_idx][j - 1] + 1
-                d_num = distance[prev_row_idx][j] + 1
-                distance[cur_row_idx][j] = min(s_num, i_num, d_num)
+                ch = self.char_map[c]
+            int_sequence.append(ch)
+        return int_sequence
 
-    return distance[m % 2][n]
+    def int_to_text_sequence(self, labels):
+        """Convert integer labels to a text sequence using the character map."""
+        string = []
+        for i in labels:
+            string.append(self.index_map[i])
+        return ''.join(string).replace('<SPACE>', ' ')
 
-def word_errors(reference, hypothesis, ignore_case=False, delimiter=' '):
-    
-    if ignore_case:
-        reference = reference.lower()
-        hypothesis = hypothesis.lower()
+textprocess = TextProcess()
 
-    ref_words = reference.split(delimiter)
-    hyp_words = hypothesis.split(delimiter)
-
-    edit_distance = _levenshtein_distance(ref_words, hyp_words)
-    return float(edit_distance), len(ref_words)
-
-def char_errors(reference, hypothesis, ignore_case=False, remove_space=False):
-
-    if ignore_case:
-        reference = reference.lower()
-        hypothesis = hypothesis.lower()
-
-    join_char = ' '
-    if remove_space:
-        join_char = ''
-
-    reference = join_char.join(filter(None, reference.split(' ')))
-    hypothesis = join_char.join(filter(None, hypothesis.split(' ')))
-
-    edit_distance = _levenshtein_distance(reference, hypothesis)
-    return float(edit_distance), len(reference)
-
-def wer(reference, hypothesis, ignore_case=False, delimiter=' '):
-
-    edit_distance, ref_len = word_errors(reference, hypothesis, ignore_case, delimiter)
-
-    if ref_len == 0:
-        raise ValueError("Reference's word number should be greater than 0.")
-
-    wer_value = float(edit_distance) / ref_len
-    return wer_value
-
-def cer(reference, hypothesis, ignore_case=False, remove_space=False):
-
-    edit_distance, ref_len = char_errors(reference, hypothesis, ignore_case, remove_space)
-
-    if ref_len == 0:
-        raise ValueError("Length of reference should be greater than 0.")
-
-    cer_value = float(edit_distance) / ref_len
-    return cer_value
+def GreedyDecoder(output, labels, label_lengths, blank_label=28, collapse_repeated=True):
+    """Greedy decoding of the model output."""
+    arg_maxes = torch.argmax(output, dim=2)
+    decodes = []
+    targets = []
+    for i, args in enumerate(arg_maxes):
+        decode = []
+        targets.append(textprocess.int_to_text_sequence(
+            labels[i][:label_lengths[i]].tolist()))
+        for j, index in enumerate(args):
+            if index != blank_label:
+                if collapse_repeated and j != 0 and index == args[j - 1]:
+                    continue
+                decode.append(index.item())
+        decodes.append(textprocess.int_to_text_sequence(decode))
+    return decodes, targets
