@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from config import args
 import torch.optim as optim
+import matplotlib.pyplot as plt
 from model import SpeechRecognition
 from torch.nn import functional as F
 from pytorch_lightning import Trainer
@@ -19,6 +20,8 @@ class SpeechModule(LightningModule):
         self.model = model
         self.criterion = nn.CTCLoss(blank=28, zero_infinity=True)
         self.args = args
+        self.train_losses = []
+        self.val_losses = []
 
     def forward(self, x, hidden):
         return self.model(x, hidden)
@@ -42,6 +45,7 @@ class SpeechModule(LightningModule):
     def training_step(self, batch, batch_idx):
         loss = self.step(batch)
         logs = {'loss': loss, 'lr': self.optimizer.param_groups[0]['lr']}
+        self.train_losses.append(loss.item())
         return {'loss': loss, 'log': logs}
 
     def train_dataloader(self):
@@ -59,6 +63,7 @@ class SpeechModule(LightningModule):
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         self.scheduler.step(avg_loss)
+        self.val_losses.append(avg_loss.item())
         tensorboard_logs = {'val_loss': avg_loss}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
@@ -80,6 +85,17 @@ def checkpoint_callback(args):
         prefix=''
     )
 
+def save_loss_graph(train_losses, val_losses, save_path):
+    plt.figure()
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Epoch vs Loss')
+    plt.savefig(save_path)
+    plt.close()
+
 def main(args):
     h_params = SpeechRecognition.hyper_parameters
     h_params.update(args['hparams_override'])
@@ -98,6 +114,16 @@ def main(args):
         checkpoint_callback=checkpoint_callback(args), resume_from_checkpoint=args['resume_from_checkpoint']
     )
     trainer.fit(speech_module)
+
+    # Save the model
+    model_save_path = os.path.join(args['save_model_path'], 'final_model.pth')
+    torch.save(model.state_dict(), model_save_path)
+
+    # Save the loss graph
+    if not os.path.exists('graphs'):
+        os.makedirs('graphs')
+    loss_graph_path = os.path.join('graphs', 'epoch_vs_loss.png')
+    save_loss_graph(speech_module.train_losses, speech_module.val_losses, loss_graph_path)
 
 if __name__ == "__main__":
     main(args)

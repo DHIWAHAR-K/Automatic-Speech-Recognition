@@ -119,12 +119,7 @@ class Data(torch.utils.data.Dataset):
         return self.data.describe()
 
 def collate_fn_padd(data):
-    '''
-    Pads batch of variable length
 
-    note: it converts things ToTensor manually here since the ToTensor transform
-    assumes it takes in images rather than arbitrary tensors.
-    '''
     spectrograms = []
     labels = []
     input_lengths = []
