@@ -2,6 +2,7 @@
 import os
 import torch
 import torch.nn as nn
+from config import args
 import torch.optim as optim
 from model import SpeechRecognition
 from torch.nn import functional as F
@@ -11,7 +12,6 @@ from dataset import Data, collate_fn_padd
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.core.lightning import LightningModule
-from config import args  # Import the args from config.py
 
 class SpeechModule(LightningModule):
     def __init__(self, model, args):
