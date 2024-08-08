@@ -1,129 +1,64 @@
 #train.py
 import os
-import torch
-import torch.nn as nn
-from config import args
-import torch.optim as optim
-import matplotlib.pyplot as plt
-from model import SpeechRecognition
-from torch.nn import functional as F
-from pytorch_lightning import Trainer
-from torch.utils.data import DataLoader
-from dataset import Data, collate_fn_padd
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.core.lightning import LightningModule
+import numpy as np
+from jiwer import wer
+import tensorflow as tf
+from tensorflow import keras
 
-class SpeechModule(LightningModule):
-    def __init__(self, model, args):
-        super(SpeechModule, self).__init__()
+class CallbackEval(keras.callbacks.Callback):
+    def __init__(self, dataset, model, int_to_char):
+        super().__init__()
+        self.dataset = dataset
         self.model = model
-        self.criterion = nn.CTCLoss(blank=28, zero_infinity=True)
-        self.args = args
-        self.train_losses = []
-        self.val_losses = []
+        self.int_to_char = int_to_char
 
-    def forward(self, x, hidden):
-        return self.model(x, hidden)
+    def decode_batch_predictions(self, pred):
+        input_len = np.ones(pred.shape[0]) * pred.shape[1]
+        results = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)[0][0]
+        output_text = []
+        for result in results:
+            result = tf.strings.reduce_join(self.int_to_char(result)).numpy().decode("utf-8")
+            output_text.append(result)
+        return output_text
 
-    def configure_optimizers(self):
-        self.optimizer = optim.AdamW(self.model.parameters(), self.args['learning_rate'])
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode='min', factor=0.50, patience=6)
-        return [self.optimizer], [self.scheduler]
+    def on_epoch_end(self, epoch, logs=None):
+        predictions = []
+        targets = []
+        for batch in self.dataset:
+            X, y = batch
+            batch_predictions = self.model.predict(X)
+            batch_predictions = self.decode_batch_predictions(batch_predictions)
+            predictions.extend(batch_predictions)
+            for label in y:
+                label = tf.strings.reduce_join(self.int_to_char(label)).numpy().decode("utf-8")
+                targets.append(label)
+        wer_score = wer(targets, predictions)
+        print("-" * 100)
+        print(f"Word Error Rate: {wer_score:.4f}")
+        print("-" * 100)
+        for i in np.random.randint(0, len(predictions), 2):
+            print(f"Target    : {targets[i]}")
+            print(f"Prediction: {predictions[i]}")
+            print("-" * 100)
 
-    def step(self, batch):
-        spectrograms, labels, input_lengths, label_lengths = batch 
-        bs = spectrograms.shape[0]
-        hidden = self.model._init_hidden(bs)
-        hn, c0 = hidden[0].to(self.device), hidden[1].to(self.device)
-        output, _ = self(spectrograms, (hn, c0))
-        output = F.log_softmax(output, dim=2)
-        loss = self.criterion(output, labels, input_lengths, label_lengths)
-        return loss
+def train_model(model, train_dataset, validation_dataset, epochs, checkpoint_dir, graph_dir):
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    os.makedirs(graph_dir, exist_ok=True)
 
-    def training_step(self, batch, batch_idx):
-        loss = self.step(batch)
-        logs = {'loss': loss, 'lr': self.optimizer.param_groups[0]['lr']}
-        self.train_losses.append(loss.item())
-        return {'loss': loss, 'log': logs}
-
-    def train_dataloader(self):
-        d_params = Data.parameters
-        d_params.update(self.args['dparams_override'])
-        train_dataset = Data(json_path=self.args['train_file'], **d_params)
-        return DataLoader(dataset=train_dataset, batch_size=self.args['batch_size'],
-                          num_workers=self.args['data_workers'], pin_memory=True,
-                          collate_fn=collate_fn_padd)
-
-    def validation_step(self, batch, batch_idx):
-        loss = self.step(batch)
-        return {'val_loss': loss}
-
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        self.scheduler.step(avg_loss)
-        self.val_losses.append(avg_loss.item())
-        tensorboard_logs = {'val_loss': avg_loss}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
-
-    def val_dataloader(self):
-        d_params = Data.parameters
-        d_params.update(self.args['dparams_override'])
-        test_dataset = Data(json_path=self.args['valid_file'], **d_params, valid=True)
-        return DataLoader(dataset=test_dataset, batch_size=self.args['batch_size'],
-                          num_workers=self.args['data_workers'], collate_fn=collate_fn_padd,
-                          pin_memory=True)
-
-def checkpoint_callback(args):
-    return ModelCheckpoint(
-        filepath=args['save_model_path'],
-        save_top_k=True,
-        verbose=True,
-        monitor='val_loss',
-        mode='min',
-        prefix=''
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        os.path.join(checkpoint_dir, 'model_epoch_{epoch:03d}.ckpt'),
+        save_weights_only=True,
+        save_freq='epoch',
+        verbose=1
     )
 
-def save_loss_graph(train_losses, val_losses, save_path):
-    plt.figure()
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(val_losses, label='Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.title('Epoch vs Loss')
-    plt.savefig(save_path)
-    plt.close()
+    validation_callback = CallbackEval(validation_dataset, model, int_to_char)
 
-def main(args):
-    h_params = SpeechRecognition.hyper_parameters
-    h_params.update(args['hparams_override'])
-    model = SpeechRecognition(**h_params)
-
-    if args['load_model_from']:
-        speech_module = SpeechModule.load_from_checkpoint(args['load_model_from'], model=model, args=args)
-    else:
-        speech_module = SpeechModule(model, args)
-
-    logger = TensorBoardLogger(args['logdir'], name='speech_recognition')
-
-    trainer = Trainer(
-        max_epochs=args['epochs'], gpus=args['gpus'], num_nodes=args['nodes'], distributed_backend=None,
-        logger=logger, gradient_clip_val=1.0, val_check_interval=args['valid_every'],
-        checkpoint_callback=checkpoint_callback(args), resume_from_checkpoint=args['resume_from_checkpoint']
+    history = model.fit(
+        train_dataset,
+        validation_data=validation_dataset,
+        epochs=epochs,
+        callbacks=[validation_callback, model_checkpoint_callback]
     )
-    trainer.fit(speech_module)
 
-    # Save the model
-    model_save_path = os.path.join(args['save_model_path'], 'final_model.pth')
-    torch.save(model.state_dict(), model_save_path)
-
-    # Save the loss graph
-    if not os.path.exists('graphs'):
-        os.makedirs('graphs')
-    loss_graph_path = os.path.join('graphs', 'epoch_vs_loss.png')
-    save_loss_graph(speech_module.train_losses, speech_module.val_losses, loss_graph_path)
-
-if __name__ == "__main__":
-    main(args)
+    return history

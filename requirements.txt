@@ -1,6 +1,0 @@
-#requirements.txt
-torch
-torchaudio
-pandas
-pytorch-lightning
-numpy
