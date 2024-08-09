@@ -7,7 +7,7 @@ from data_loader import load_and_preprocess_data, prepare_datasets
 
 # Configurations
 data_url = "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"
-batch_size = 32
+batch_size = 64
 epochs = 100
 
 # Load and preprocess the data
