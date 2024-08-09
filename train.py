@@ -23,7 +23,6 @@ train_dataset, validation_dataset = prepare_datasets(train_data, validation_data
 
 # Build the model
 model = build_model(input_dim=384 // 2 + 1, output_dim=char_to_int.vocabulary_size(), rnn_units=512)
-model.summary(line_length=110)
 
 # Directories for saving checkpoints and the final model
 checkpoint_dir = 'models/model_mark_1/checkpoint'
