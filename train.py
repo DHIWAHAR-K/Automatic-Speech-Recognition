@@ -27,9 +27,9 @@ model = build_model(input_dim=384 // 2 + 1, output_dim=char_to_int.vocabulary_si
 model.summary(line_length=110)
 
 # Directories for saving checkpoints and the final model
-checkpoint_dir = 'models/model_mark_1/checkpoint'
-final_model_dir = 'models/model_mark_1/models'
-graph_dir = 'models/model_mark_1/graphs'
+checkpoint_dir = 'models/checkpoint'
+final_model_dir = 'models/models'
+graph_dir = 'models/graphs'
 
 # Ensure directories exist
 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -54,7 +54,7 @@ history = model.fit(
     )
 
 #Save the final model in .keras format
-model.save(os.path.join(final_model_dir, 'model_mark_1'))
+model.save(os.path.join(final_model_dir))
 
 #Plot training loss
 plt.figure(figsize=(10, 6))
