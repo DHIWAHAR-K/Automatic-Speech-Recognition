@@ -1,6 +1,6 @@
 #requirements.txt
-numpy
-jiwer
-pandas
 tensorflow
+numpy
+pandas
 matplotlib
+jiwer

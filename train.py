@@ -1,13 +1,14 @@
 #train.py
 import os
 import tensorflow as tf
+import matplotlib.pyplot as plt
 from callbacks import CallbackEval
 from model_builder import build_model
 from data_loader import load_and_preprocess_data, prepare_datasets
 
 # Configurations
 data_url = "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"
-batch_size = 64
+batch_size = 32
 epochs = 100
 
 # Load and preprocess the data
@@ -23,6 +24,7 @@ train_dataset, validation_dataset = prepare_datasets(train_data, validation_data
 
 # Build the model
 model = build_model(input_dim=384 // 2 + 1, output_dim=char_to_int.vocabulary_size(), rnn_units=512)
+model.summary(line_length=110)
 
 # Directories for saving checkpoints and the final model
 checkpoint_dir = 'models/model_mark_1/checkpoint'
@@ -49,13 +51,12 @@ history = model.fit(
     validation_data=validation_dataset,
     epochs=epochs,
     callbacks=[validation_callback, model_checkpoint_callback],
-)
+    )
 
-# Save the final model in .keras format
+#Save the final model in .keras format
 model.save(os.path.join(final_model_dir, 'model_mark_1'))
 
-# Plot training loss
-import matplotlib.pyplot as plt
+#Plot training loss
 plt.figure(figsize=(10, 6))
 plt.plot(history.history['loss'], label='Training Loss')
 plt.plot(history.history['val_loss'], label='Validation Loss')
@@ -65,6 +66,6 @@ plt.ylabel('Loss')
 plt.legend()
 plt.grid(True)
 
-# Save the loss graph
+#Save the loss graph
 plt.savefig(os.path.join(graph_dir, 'loss_graph.png'))
 plt.close()
