@@ -22,27 +22,23 @@ Install the following Python packages:
 
 ## Usage
 
-To run the Flask application, navigate to the project directory in your terminal and execute:
+To train the model, navigate to the project directory in your terminal and execute:
 
 ```bash
-python app.py
+python train.py
 ```
 
-This command will start the Flask server, making the API available for movie recommendations. Interact with the API by sending a GET request to /recommend with a movie title as a query parameter, like so:
-
-```bash
-http://127.0.0.1:5000/recommend?title=The%20Dark%20Knight%20Rises
-```
+This command will initiate the data loading, model building, and training process. The model checkpoints will be saved in the models/checkpoint directory. After training, the final model will be saved in the models/model_mark_1/models directory, and a loss graph will be generated in the models/graphs directory.
 
 ## Features
 
-1. Data Loading and Parsing: Automated scripts to load and parse the TMDB 5000 movie dataset.
-
-2. Content-Based Recommendation: Utilizes TF-IDF vectorization and cosine similarity to find movies similar to a given title.
-
-3. Flask API: A simple and efficient web API to interact with the recommendation system.
+1.	Data Loading and Preprocessing: The LJSpeech dataset is automatically downloaded and preprocessed, including audio file transformation and text normalization.
+2.	CNN + BiLSTM + CTC Model: A custom-built model that combines convolutional layers with BiLSTM and uses the CTC loss function to handle variable-length sequences.
+3.	Word Error Rate (WER) Calculation: A custom callback evaluates the model’s performance by calculating the WER on the validation dataset at the end of each epoch.
+4.	Checkpointing and Model Saving: Checkpoints are saved after every epoch, and the final trained model is stored in .keras format for future inference.
+5.	Training Loss Plot: A graph of training and validation loss is generated to visually track the model’s performance over time.
 
 
 ## License
 
-This README accurately reflects the Flask setup, dependencies, and usage, replacing Streamlit references with Flask and adjusting the paths and method descriptions accordingly. Feel free to copy and paste this content directly into your `README.md` file.
+Feel free to copy and paste this README structure into your README.md file. This README accurately reflects the setup, dependencies, and usage for the speech-to-text model.
