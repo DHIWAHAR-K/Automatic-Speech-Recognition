@@ -5,11 +5,10 @@ import tensorflow as tf
 from tensorflow import keras
 
 class CallbackEval(keras.callbacks.Callback):
-    def __init__(self, dataset, int_to_char, model):
+    def __init__(self, dataset, int_to_char):
         super().__init__()
         self.dataset = dataset
         self.int_to_char = int_to_char
-        self.model = model
 
     def decode_batch_predictions(self, pred):
         input_len = np.ones(pred.shape[0]) * pred.shape[1]

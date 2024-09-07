@@ -44,7 +44,7 @@ model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     verbose=1
 )
 
-validation_callback = CallbackEval(validation_dataset, int_to_char, model)
+validation_callback = CallbackEval(validation_dataset, int_to_char)
 
 # Train the model
 history = model.fit(
