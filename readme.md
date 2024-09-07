@@ -41,4 +41,4 @@ This command will initiate the data loading, model building, and training proces
 
 ## License
 
-Feel free to copy and paste this README structure into your README.md file. This README accurately reflects the setup, dependencies, and usage for the speech-to-text model.
+Feel free to copy and paste these file structure into your system. This README accurately reflects the setup, dependencies, and usage for the speech-to-text model.

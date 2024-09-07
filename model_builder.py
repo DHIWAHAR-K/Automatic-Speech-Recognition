@@ -37,7 +37,7 @@ def build_model(input_dim, output_dim, rnn_layers=5, rnn_units=128):
     output = tf.keras.layers.Dense(units=output_dim + 1, activation="softmax")(x)
     model = keras.Model(input_spectrogram, output)
 
-    opt = keras.optimizers.legacy.Adam(learning_rate=1e-4)
+    opt = keras.optimizers.Adam(learning_rate=1e-4)
     model.compile(optimizer=opt, loss=CTCLoss)
 
     return model

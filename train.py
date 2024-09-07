@@ -38,11 +38,12 @@ os.makedirs(graph_dir, exist_ok=True)
 
 # Callbacks
 model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-    os.path.join(checkpoint_dir, 'model_epoch_{epoch:03d}.ckpt'),
+    os.path.join(checkpoint_dir, 'model_epoch_{epoch:03d}.weights.h5'),
     save_weights_only=True,
     save_freq='epoch',
     verbose=1
 )
+
 validation_callback = CallbackEval(validation_dataset, int_to_char, model)
 
 # Train the model
