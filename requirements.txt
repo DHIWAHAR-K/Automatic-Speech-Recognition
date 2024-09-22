@@ -1,6 +1,0 @@
-#requirements.txt
-tensorflow
-numpy
-pandas
-matplotlib
-jiwer
