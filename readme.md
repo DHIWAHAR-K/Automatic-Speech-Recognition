@@ -22,7 +22,7 @@ Ensure you have Python 3.6+ installed and TensorFlow configured, then proceed wi
 
 2. Download the LJSpeech dataset and ensure it is accessible by the `data_loader.py` script:
 
-    - Dataset URL: `https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2`
+    Dataset URL: `https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2`
 
 ## Usage
 
@@ -35,3 +35,13 @@ python train.py
 This command will initiate the data loading, model building, and training process. The model checkpoints will be saved in the checkpoints directory. After training, the final model will be saved in the model directory, and a loss graph will be generated in the graphs directory.
 
 ## Usage
+
+1.	Data Loading and Preprocessing: The LJSpeech dataset is automatically downloaded and preprocessed, including audio file transformation and text normalization.
+
+2.	CNN + BiLSTM + CTC Model: A custom-built model that combines convolutional layers with BiLSTM and uses the CTC loss function to handle variable-length sequences.
+
+3.	Word Error Rate (WER) Calculation: A custom callback evaluates the model’s performance by calculating the WER on the validation dataset at the end of each epoch.
+
+4.	Checkpointing and Model Saving: Checkpoints are saved after every epoch, and the final trained model is stored in .keras format for future inference.
+
+5.	Training Loss Plot: A graph of training and validation loss is generated to visually track the model’s performance over time.
