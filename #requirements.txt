@@ -1,0 +1,6 @@
+#requirements.txt
+jiwer
+numpy
+pandas
+matplotlib
+tensorflow
