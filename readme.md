@@ -34,7 +34,7 @@ python train.py
 
 This command will initiate the data loading, model building, and training process. The model checkpoints will be saved in the checkpoints directory. After training, the final model will be saved in the model directory, and a loss graph will be generated in the graphs directory.
 
-## Usage
+## Features
 
 1.	Data Loading and Preprocessing: The LJSpeech dataset is automatically downloaded and preprocessed, including audio file transformation and text normalization.
 
@@ -45,3 +45,7 @@ This command will initiate the data loading, model building, and training proces
 4.	Checkpointing and Model Saving: Checkpoints are saved after every epoch, and the final trained model is stored in .keras format for future inference.
 
 5.	Training Loss Plot: A graph of training and validation loss is generated to visually track the model’s performance over time.
+
+## License
+
+Feel free to copy and paste this README structure into your README.md file. This README accurately reflects the setup, dependencies, and usage for the speech-to-text model.
