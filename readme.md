@@ -1,51 +1,109 @@
-# Speech-to-Text Model with CNN + BiLSTM + CTC
+# Automatic Speech Recognition
 
-This project implements a speech-to-text model using a Convolutional Neural Network (CNN) combined with Bidirectional Long Short-Term Memory (BiLSTM) layers and the Connectionist Temporal Classification (CTC) loss function. The model is trained on the LJSpeech dataset and supports modular components for data loading, model building, and training.
+End-to-end speech-to-text model inspired by DeepSpeech 2. Combines CNN feature extraction with stacked Bidirectional LSTM layers and CTC loss for sequence-to-sequence audio transcription. Trained on the LJSpeech dataset.
 
-## Project Structure
+## Model Architecture
 
-- `train.py`: The main script that initializes the model, loads data, and trains the model while saving checkpoints and performance graphs.
-- `data_loader.py`: Handles loading, preprocessing, and dataset preparation from the LJSpeech dataset.
-- `model_builder.py`: Builds the CNN + BiLSTM + CTC model and compiles it with the custom CTC loss function.
-- `callbacks.py`: Implements a custom callback for evaluation, calculating the Word Error Rate (WER) after each epoch.
-- `config.py`: Contains configuration parameters for easy modification of hyperparameters and dataset paths.
-
-## Setup and Installation
-
-Ensure you have Python 3.6+ installed and TensorFlow configured, then proceed with the following steps to set up the project environment:
-
-1. Install required Python packages:
-
-    ```bash
-    pip install tensorflow pandas matplotlib jiwer
-    ```
-
-2. Download the LJSpeech dataset and ensure it is accessible by the `data_loader.py` script:
-
-    Dataset URL: `https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2`
-
-## Usage
-
-To train the model, navigate to the project directory in your terminal and execute:
-
-```bash
-python train.py
 ```
+Audio Waveform
+    │
+    ▼
+┌────────────────────┐
+│  STFT Spectrogram   │  Frame length: 256, Frame step: 160, FFT: 384
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│   Conv2D Block 1    │  32 filters, kernel [11, 41], stride [2, 2] + BatchNorm + ReLU
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│   Conv2D Block 2    │  32 filters, kernel [11, 21], stride [1, 2] + BatchNorm + ReLU
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│  5× Bidirectional   │  512 units each, concat merge mode, 50% dropout between layers
+│      LSTM           │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│  Dense + ReLU       │  1024 units + 50% dropout
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│  Softmax Output     │  Vocabulary size + 1 (CTC blank token)
+└────────────────────┘
 
-This command will initiate the data loading, model building, and training process. The model checkpoints will be saved in the checkpoints directory. After training, the final model will be saved in the model directory, and a loss graph will be generated in the graphs directory.
+Loss: CTC (Connectionist Temporal Classification)
+Optimizer: Adam (lr=1e-4)
+```
 
 ## Features
 
-1.	Data Loading and Preprocessing: The LJSpeech dataset is automatically downloaded and preprocessed, including audio file transformation and text normalization.
+- **DeepSpeech 2-inspired architecture** — CNN front-end for local feature extraction + BiLSTM for temporal modeling
+- **CTC loss function** — Handles variable-length alignment between audio frames and text without forced alignment
+- **Word Error Rate tracking** — Custom callback evaluates WER on validation set after each epoch
+- **Training visualization** — Automatic loss plots saved to `graphs/` directory after each epoch
+- **Model checkpointing** — Full model saved at every epoch to `checkpoints/`
+- **Greedy CTC decoding** — Beam-free decoding for fast inference
 
-2.	CNN + BiLSTM + CTC Model: A custom-built model that combines convolutional layers with BiLSTM and uses the CTC loss function to handle variable-length sequences.
+## Project Structure
 
-3.	Word Error Rate (WER) Calculation: A custom callback evaluates the model’s performance by calculating the WER on the validation dataset at the end of each epoch.
+```
+Automatic-Speech-Recognition/
+├── config.py           # Hyperparameters, paths, character vocabulary, CTC decode utility
+├── data_loader.py      # LJSpeech loader: WAV → STFT spectrogram + character-level labels
+├── model_builder.py    # DeepSpeech 2 model: 2× Conv2D + 5× BiLSTM + Dense + CTC loss
+├── train.py            # Training script with dataset loading, model building, and saving
+├── callbacks.py        # Custom callbacks: WER evaluation, loss plotting, checkpointing
+├── requirements.txt    # Dependencies
+└── notebook/
+    └── model.ipynb     # Jupyter notebook for experimentation
+```
 
-4.	Checkpointing and Model Saving: Checkpoints are saved after every epoch, and the final trained model is stored in .keras format for future inference.
+## Dataset
 
-5.	Training Loss Plot: A graph of training and validation loss is generated to visually track the model’s performance over time.
+**LJSpeech-1.1** — 13,100 short audio clips of a single speaker reading passages from 7 non-fiction books. ~24 hours of speech.
 
-## License
+- Automatically downloaded via `keras.utils.get_file()`
+- 90/10 train/validation split
+- Audio preprocessed to STFT spectrograms with power-law compression and z-normalization
+- Text labels mapped to character-level indices (a-z, punctuation, space)
 
-Feel free to copy and paste this README structure into your README.md file. This README accurately reflects the setup, dependencies, and usage for the speech-to-text model.
+## Configuration
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `FRAME_LENGTH` | 256 | STFT window size |
+| `FRAME_STEP` | 160 | STFT hop length |
+| `FFT_LENGTH` | 384 | FFT size |
+| `RNN_UNITS` | 512 | BiLSTM hidden units |
+| `BATCH_SIZE` | 16 | Training batch size |
+| `EPOCHS` | 100 | Training epochs |
+| `TRAIN_SPLIT` | 0.90 | Train/val ratio |
+
+## Getting Started
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Train the model
+python train.py
+```
+
+The model will be saved to `model/final_model.h5` after training.
+
+## Tech Stack
+
+**Framework:** TensorFlow 2.x / Keras
+
+**Audio Processing:** `tf.signal` (STFT, spectrogram)
+
+**Evaluation:** `jiwer` (Word Error Rate)
+
+**Visualization:** Matplotlib
